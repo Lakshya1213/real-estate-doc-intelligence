@@ -38,63 +38,62 @@ async function uploaddocument() {
 }
 
 
-function searchQuery() {
-    const query = document.getElementById("queryInput").value;
-    const loader = document.getElementById("loader");
-    const resultsDiv = document.getElementById("results");
-    const latencyText = document.getElementById("latency");
+// async function searchQuery() {
+//     const query = document.getElementById("chatInput").value;
+//     const resultsDiv = document.getElementById("results");
+//     const loader = document.getElementById("loader");
 
-    if (!query) {
-        alert("Please enter a question.");
-        return;
-    }
+//     if (!query) {
+//         alert("Please enter a question.");
+//         return;
+//     }
 
-    resultsDiv.innerHTML = "";
-    loader.style.display = "block";
-    latencyText.innerText = "";
+//     resultsDiv.innerHTML = "";
+//     loader.style.display = "block";
 
-    const start = performance.now();
+//     const start = performance.now();
 
-    setTimeout(() => {
-        const mockResults = [
-            {
-                text: "The property is located near Metro Station and City Mall.",
-                pdf_name: "sale_agreement.pdf",
-                page: 3
-            },
-            {
-                text: "The total area of the land is 2400 square feet.",
-                pdf_name: "property_details.pdf",
-                page: 5
-            },
-            {
-                text: "The building includes parking space for 20 vehicles.",
-                pdf_name: "layout_plan.pdf",
-                page: 2
-            }
-        ];
+//     try {
+//         const response = await fetch("/search", {
+//             method: "POST",
+//             headers: {
+//                 "Content-Type": "application/json"
+//             },
+//             body: JSON.stringify({
+//                 query: query,
+//                 top_k: 3
+//             })
+//         });
 
-        loader.style.display = "none";
+//         const data = await response.json();
 
-        const end = performance.now();
-        const latency = ((end - start) / 1000).toFixed(2);
-        latencyText.innerText = "Query Latency: " + latency + "s";
+//         loader.style.display = "none";
 
-        mockResults.forEach(item => {
-            const div = document.createElement("div");
-            div.classList.add("result-item");
-            div.innerHTML = `
-                <p>${item.text}</p>
-                <small>Source: ${item.pdf_name}, Page ${item.page}</small>
-            `;
-            resultsDiv.appendChild(div);
-        });
+//         const end = performance.now();
+//         const latency = ((end - start) / 1000).toFixed(2);
 
-    }, 1200);
-}
+//         document.getElementById("latency").innerText =
+//             "Query Latency: " + latency + "s";
+
+//         data.results.forEach(item => {
+//             const div = document.createElement("div");
+//             div.classList.add("result-item");
+//             div.innerHTML = `
+//                 <p>${item.text}</p>
+//                 <small>Score: ${item.score?.toFixed(4)}</small>
+//             `;
+//             resultsDiv.appendChild(div);
+//         });
+
+//     } catch (error) {
+//         console.error("Error:", error);
+//         loader.style.display = "none";
+//         alert("Error searching documents");
+//     }
+// }
 
 
-function sendChatMessage() {
+async function sendChatMessage() {
     const input = document.getElementById("chatInput");
     const text = input.value.trim();
     const chatBox = document.getElementById("chatBox");
@@ -108,19 +107,39 @@ function sendChatMessage() {
     chatBox.appendChild(userMsg);
 
     input.value = "";
+    chatBox.scrollTop = chatBox.scrollHeight;
 
-    // Simulate AI response
-    setTimeout(() => {
+    try {
+        const response = await fetch("/search", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                query: text,
+                top_k: 3
+            })
+        });
+
+        const data = await response.json();
+
+        // Combine retrieved chunks into single answer
+        let combinedText = data.results
+            .map(r => r.text)
+            .join("\n\n");
+
         const aiMsg = document.createElement("div");
         aiMsg.classList.add("chat-message", "ai");
-        aiMsg.innerText = generateMockResponse(text);
+        aiMsg.innerText = combinedText;
+
         chatBox.appendChild(aiMsg);
-
         chatBox.scrollTop = chatBox.scrollHeight;
-    }, 800);
 
-    chatBox.scrollTop = chatBox.scrollHeight;
+    } catch (error) {
+        console.error(error);
+    }
 }
+
 
 // Allow Enter key
 document.getElementById("chatInput").addEventListener("keypress", function(e) {

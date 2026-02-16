@@ -56,3 +56,24 @@ async def upload_file(file: UploadFile = File(...)):
         "chunks": len(chunks)
     }
 
+
+from pydantic import BaseModel
+from src.vectorstore import FaissVectorStore
+
+class QueryRequest(BaseModel):
+    query: str
+    top_k: int = 3
+
+
+
+@app.post("/search")
+async def search_documents(request: QueryRequest):
+
+    store = FaissVectorStore("faiss_store")
+
+    results = store.search(request.query, request.top_k)
+
+    return {
+        "query": request.query,
+        "results": results
+    }
