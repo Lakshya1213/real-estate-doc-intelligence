@@ -1,11 +1,42 @@
-function fakeUpload() {
+async function uploaddocument() {
+    const fileInput = document.getElementById("pdfFile");
     const status = document.getElementById("uploadStatus");
-    status.innerText = "Uploading...";
-    
-    setTimeout(() => {
-        status.innerText = "Document uploaded successfully ✅";
-    }, 1000);
+
+    if (fileInput.files.length === 0) {
+        status.innerText = "Please select a file first.";
+        status.style.color = "red";
+        return;
+    }
+
+    const file = fileInput.files[0];
+    const formData = new FormData();
+    formData.append("file", file);
+
+    status.innerText = "Uploading & processing...";
+    status.style.color = "blue";
+
+    try {
+        const response = await fetch("/upload", {
+            method: "POST",
+            body: formData
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            status.innerText = `Success! ${data.filename} chunks created.`;
+            status.style.color = "green";
+        } else {
+            status.innerText = data.detail || "Upload failed.";
+            status.style.color = "red";
+        }
+
+    } catch (error) {
+        status.innerText = "Server error.";
+        status.style.color = "red";
+    }
 }
+
 
 function searchQuery() {
     const query = document.getElementById("queryInput").value;
