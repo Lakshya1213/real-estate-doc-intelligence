@@ -38,59 +38,6 @@ async function uploaddocument() {
 }
 
 
-// async function searchQuery() {
-//     const query = document.getElementById("chatInput").value;
-//     const resultsDiv = document.getElementById("results");
-//     const loader = document.getElementById("loader");
-
-//     if (!query) {
-//         alert("Please enter a question.");
-//         return;
-//     }
-
-//     resultsDiv.innerHTML = "";
-//     loader.style.display = "block";
-
-//     const start = performance.now();
-
-//     try {
-//         const response = await fetch("/search", {
-//             method: "POST",
-//             headers: {
-//                 "Content-Type": "application/json"
-//             },
-//             body: JSON.stringify({
-//                 query: query,
-//                 top_k: 3
-//             })
-//         });
-
-//         const data = await response.json();
-
-//         loader.style.display = "none";
-
-//         const end = performance.now();
-//         const latency = ((end - start) / 1000).toFixed(2);
-
-//         document.getElementById("latency").innerText =
-//             "Query Latency: " + latency + "s";
-
-//         data.results.forEach(item => {
-//             const div = document.createElement("div");
-//             div.classList.add("result-item");
-//             div.innerHTML = `
-//                 <p>${item.text}</p>
-//                 <small>Score: ${item.score?.toFixed(4)}</small>
-//             `;
-//             resultsDiv.appendChild(div);
-//         });
-
-//     } catch (error) {
-//         console.error("Error:", error);
-//         loader.style.display = "none";
-//         alert("Error searching documents");
-//     }
-// }
 
 
 async function sendChatMessage() {
@@ -100,7 +47,7 @@ async function sendChatMessage() {
 
     if (text === "") return;
 
-    // Add user message
+    // User message
     const userMsg = document.createElement("div");
     userMsg.classList.add("chat-message", "user");
     userMsg.innerText = text;
@@ -123,20 +70,16 @@ async function sendChatMessage() {
 
         const data = await response.json();
 
-        // Combine retrieved chunks into single answer
-        let combinedText = data.results
-            .map(r => r.text)
-            .join("\n\n");
-
+        // ✅ final_answer is already a string
         const aiMsg = document.createElement("div");
         aiMsg.classList.add("chat-message", "ai");
-        aiMsg.innerText = combinedText;
+        aiMsg.innerText = data.final_answer;
 
         chatBox.appendChild(aiMsg);
         chatBox.scrollTop = chatBox.scrollHeight;
 
     } catch (error) {
-        console.error(error);
+        console.error("Frontend error:", error);
     }
 }
 
@@ -148,14 +91,14 @@ document.getElementById("chatInput").addEventListener("keypress", function(e) {
     }
 });
 
-function generateMockResponse(question) {
-    const responses = [
-        "The total land area mentioned is 2400 sq ft.",
-        "The property is located near Metro Station.",
-        "Parking is available for 20 vehicles.",
-        "The built-up area is 1800 sq ft.",
-        "The property falls under residential zoning."
-    ];
+// function generateMockResponse(question) {
+//     const responses = [
+//         "The total land area mentioned is 2400 sq ft.",
+//         "The property is located near Metro Station.",
+//         "Parking is available for 20 vehicles.",
+//         "The built-up area is 1800 sq ft.",
+//         "The property falls under residential zoning."
+//     ];
 
-    return responses[Math.floor(Math.random() * responses.length)];
-}
+//     return responses[Math.floor(Math.random() * responses.length)];
+// }
