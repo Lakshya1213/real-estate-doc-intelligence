@@ -49,7 +49,13 @@ def home(request: Request):
 
 @app.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
-
+    
+    # if vector_store.file_exists(file.filename):
+    #     return {
+    #         "message": f"{file.filename} already uploaded.",
+    #         "status": "duplicate"
+    #     }
+        
     file_path = os.path.join(UPLOAD_DIR, file.filename)
 
     # 1️⃣ Save file
@@ -119,11 +125,16 @@ Content:
 ---
 """
 
-    # 3️⃣ Create improved RAG prompt
+    # 3️ Create improved RAG prompt
     prompt = f"""
 You are a helpful document assistant.
 
-Use ONLY the provided context to answer the question.
+Answer the question strictly using ONLY the provided context below.
+
+The first source is the most relevant. Give it higher importance.
+
+If the answer exists in multiple sources, combine the information.
+
 If the answer is not found in the context, say:
 "I could not find this information in the uploaded documents."
 
