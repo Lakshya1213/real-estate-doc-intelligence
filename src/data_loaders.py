@@ -82,11 +82,15 @@ class DataLoader:
 
         return documents
 
-    def split_documents(self, documents: List[Document]) -> List[Document]:
-        """
-        Split loaded documents into smaller chunks for embeddings.
-        """
-        return self.splitter.split_documents(documents)
+def split_documents(self, documents: List[Document]) -> List[Document]:
+    chunks = self.splitter.split_documents(documents)
+
+    # Ensure metadata is preserved properly
+    for chunk in chunks:
+        chunk.metadata["page"] = chunk.metadata.get("page", "Unknown")
+        chunk.metadata["source_file"] = chunk.metadata.get("source_file", "Unknown")
+
+    return chunks
 
     def load_and_split(self, file_path: str) -> List[Document]:
         """

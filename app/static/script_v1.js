@@ -49,7 +49,6 @@ async function sendChatMessage() {
 
     if (text === "") return;
 
-    // User message
     const userMsg = document.createElement("div");
     userMsg.classList.add("chat-message", "user");
     userMsg.innerText = text;
@@ -72,7 +71,7 @@ async function sendChatMessage() {
 
         const data = await response.json();
         console.log(data);
-        // ✅ final_answer is already a string
+
         const aiMsg = document.createElement("div");
         aiMsg.classList.add("chat-message", "ai");
         aiMsg.innerText = data.answer;
@@ -85,7 +84,6 @@ async function sendChatMessage() {
     }
 }
 
-
 // Allow Enter key
 document.getElementById("chatInput").addEventListener("keypress", function(e) {
     if (e.key === "Enter") {
@@ -93,14 +91,3 @@ document.getElementById("chatInput").addEventListener("keypress", function(e) {
     }
 });
 
-// function generateMockResponse(question) {
-//     const responses = [
-//         "The total land area mentioned is 2400 sq ft.",
-//         "The property is located near Metro Station.",
-//         "Parking is available for 20 vehicles.",
-//         "The built-up area is 1800 sq ft.",
-//         "The property falls under residential zoning."
-//     ];
-
-//     return responses[Math.floor(Math.random() * responses.length)];
-// } data is not coming in console  

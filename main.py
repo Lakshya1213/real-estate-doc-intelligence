@@ -68,9 +68,17 @@ async def upload_file(file: UploadFile = File(...)):
 
     # 4️⃣ Store in FAISS
     vector_store.store(
-        embeddings.astype("float32"),
-        [{"text": c.page_content} for c in chunks]
-    )
+    embeddings.astype("float32"),
+    [
+        {
+            "text": c.page_content,
+            "page": c.metadata.get("page", "Unknown"),
+            "source": c.metadata.get("source_file", file.filename)
+        }
+        for c in chunks
+    ]
+)
+
 
     print("[INFO] Embeddings stored successfully")
 
@@ -98,38 +106,57 @@ async def search_documents(request: QueryRequest):
     if not results:
         return {"answer": "No relevant information found."}
 
-    # 2️⃣ Combine context
-    context = "\n\n".join([r["text"] for r in results])
+    # 2️⃣ Build structured context properly
+    context = ""
 
-    # 3️⃣ Create RAG prompt
+    for r in results:
+        context += f"""
+Source: {r.get('source')}
+Page: {r.get('page')}
+Content:
+{r.get('text')}
+
+---
+"""
+
+    # 3️⃣ Create improved RAG prompt
     prompt = f"""
-You are a helpful AI assistant.
+You are a helpful document assistant.
 
-Use ONLY the context below to answer the question.
-If the answer is not in the context, say you don't know.
-Also add emoji if reuqird..
+Use ONLY the provided context to answer the question.
+If the answer is not found in the context, say:
+"I could not find this information in the uploaded documents."
+
+When answering:
+- Provide a clear answer.
+- Mention the PDF name.
+- Mention the page number.
+- Do not make up information.
+
 Context:
 {context}
 
 Question:
 {request.query}
 
-Answer clearly and concisely:
+Answer:
 """
 
-    # 4️⃣ Call Groq LLaMA model
+    # 4️⃣ Call Groq model
     response = groq_client.chat.completions.create(
-        model="llama-3.1-8b-instant",  # You can switch to 70b if needed
+        model="llama-3.1-8b-instant",
         messages=[
             {"role": "user", "content": prompt}
         ],
         temperature=0.3
     )
 
-    final_answer = response.choices[0].message.content
-     
+    final_answer = response.choices[0].message.content.strip()
+
     print(final_answer)
+
     return {
         "question": request.query,
-        "answer": final_answer
+        "answer": final_answer,
+        "sources": results   
     }

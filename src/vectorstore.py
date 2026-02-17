@@ -64,8 +64,12 @@ class FaissVectorStore:
         for idx, dist in zip(indices[0], distances[0]):
             if idx < len(self.metadata):
                 results.append({
-                    "text": self.metadata[idx]["text"],
-                    "score": float(dist)
-                })
+                        "text": self.metadata[idx].get("text"),
+                        "page": self.metadata[idx].get("page", "Unknown"),
+                        "source": self.metadata[idx].get("source", "Unknown"),
+                        "score": float(dist)
+                    })
+
+
 
         return results
