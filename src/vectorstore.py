@@ -88,13 +88,4 @@ class FaissVectorStore:
         return results
     
     
-    # def file_exists(self, filename: str) -> bool:
-    #     if not os.path.exists(self.meta_path):
-    #         return False
-
-    #     self.load()
-
-    #     existing_files = {m.get("source") for m in self.metadata}
-    #     return filename in existing_files
-
-
+   
