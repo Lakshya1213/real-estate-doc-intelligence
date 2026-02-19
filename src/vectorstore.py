@@ -3,10 +3,23 @@ import faiss
 import pickle
 import numpy as np
 from sentence_transformers import SentenceTransformer
+import torch
 
 
-# 🔥 Load embedding model once when server starts
-embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
+# -------------------------------------------------
+# 🔥 Load embedding model once (GPU if available)
+# -------------------------------------------------
+if torch.cuda.is_available():
+    device = "cuda"
+else:
+    device = "cpu"
+
+embedding_model = SentenceTransformer(
+    "BAAI/bge-base-en-v1.5",
+    device=device
+)
+
+print(f"[INFO] Query embedding model loaded on {device}")
 
 
 class FaissVectorStore:
@@ -29,15 +42,14 @@ class FaissVectorStore:
         # If index already exists → load and append
         if os.path.exists(self.index_path) and os.path.exists(self.meta_path):
             self.load()
-
             self.index.add(embeddings)
             self.metadata.extend(metadata)
 
             print(f"[INFO] Appended {embeddings.shape[0]} vectors.")
 
         else:
-            # First time creation
-            self.index = faiss.IndexFlatL2(dimension)
+            # First time creation Using Cosine
+            self.index = faiss.IndexFlatIP(dimension)
             self.index.add(embeddings)
             self.metadata = metadata
 
@@ -69,31 +81,24 @@ class FaissVectorStore:
         if self.index is None:
             self.load()
 
-        # Encode query
-        query_embedding = embedding_model.encode([query_text]).astype("float32")
+        # Encode query (same model as document embedding)
+        query_embedding = embedding_model.encode(
+        [query_text],
+        convert_to_numpy=True,
+        normalize_embeddings=True
+    ).astype("float32")
 
         distances, indices = self.index.search(query_embedding, top_k)
 
         results = []
 
         for idx, dist in zip(indices[0], distances[0]):
-            if idx < len(self.metadata):
+            if 0 <= idx < len(self.metadata):
                 results.append({
                     "text": self.metadata[idx].get("text"),
-                    "page": self.metadata[idx].get("page", "Unknown"),
+                    "page": int(self.metadata[idx].get("page", 0)),
                     "source": self.metadata[idx].get("source", "Unknown"),
                     "score": float(dist)
                 })
 
         return results
-    
-    
-    # def file_exists(self, filename: str) -> bool:
-    #     if not os.path.exists(self.meta_path):
-    #         return False
-
-    #     self.load()
-
-    #     existing_files = {m.get("source") for m in self.metadata}
-    #     return filename in existing_files
-

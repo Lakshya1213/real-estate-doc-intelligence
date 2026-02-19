@@ -7,22 +7,17 @@ import os
 from dotenv import load_dotenv
 from groq import Groq
 
-# Load environment variables
 load_dotenv()
 
-# Initialize FastAPI
 app = FastAPI()
 
-# Static & Templates
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
 
 UPLOAD_DIR = "data"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-# ==============================
 # Load RAG Components ONCE
-# ==============================
 
 from src.data_loaders import DataLoader
 from src.embeddings import EmbeddingPipeline
@@ -35,17 +30,13 @@ vector_store = FaissVectorStore("faiss_store")
 # Groq client (loads once)
 groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
-# ==============================
 # Home Route
-# ==============================
 
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
-# ==============================
 # Upload Route
-# ==============================
 
 @app.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
@@ -58,21 +49,17 @@ async def upload_file(file: UploadFile = File(...)):
         
     file_path = os.path.join(UPLOAD_DIR, file.filename)
 
-    # 1️⃣ Save file
     with open(file_path, "wb") as f:
         f.write(await file.read())
 
     print("[INFO] File saved:", file.filename)
 
-    # 2️⃣ Load document
     loader = DataLoader()
     documents = loader.load_file(file_path)
 
-    # 3️⃣ Chunk + Embed
     chunks = embedding_pipeline.chunk_documents(documents)
     embeddings = embedding_pipeline.embed_chunks(chunks)
 
-    # 4️⃣ Store in FAISS
     vector_store.store(
     embeddings.astype("float32"),
     [
@@ -94,25 +81,23 @@ async def upload_file(file: UploadFile = File(...)):
         "chunks": len(chunks)
     }
 
-# ==============================
 # Search + RAG Route
-# ==============================
 
 class QueryRequest(BaseModel):
     query: str
-    top_k: int = 3
+    top_k: int = 10
 
 
 @app.post("/search")
 async def search_documents(request: QueryRequest):
 
-    # 1️⃣ Retrieve relevant chunks
+    # Retrieve relevant chunks
     results = vector_store.search(request.query, request.top_k)
 
     if not results:
         return {"answer": "No relevant information found."}
 
-    # 2️⃣ Build structured context properly
+    #  Build structured context properly
     context = ""
 
     for r in results:
@@ -125,17 +110,13 @@ Content:
 ---
 """
 
-    # 3️ Create improved RAG prompt
+    # Create improved RAG prompt
     prompt = f"""
 You are a helpful document assistant.
 
 Answer the question strictly using ONLY the provided context below.
-
-The first source is the most relevant. Give it higher importance.
-
-If the answer exists in multiple sources, combine the information.
-
 If the answer is not found in the context, say:
+If the answer exists in multiple sources, combine the information.
 "I could not find this information in the uploaded documents."
 
 When answering:
@@ -153,7 +134,7 @@ Question:
 Answer:
 """
 
-    # 4️⃣ Call Groq model
+    #  Call Groq model
     response = groq_client.chat.completions.create(
         model="llama-3.1-8b-instant",
         messages=[

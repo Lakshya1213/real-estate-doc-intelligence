@@ -68,7 +68,7 @@ async function sendChatMessage() {
             },
             body: JSON.stringify({
                 query: text,
-                top_k: 3
+                top_k: 10
             })
         });
 

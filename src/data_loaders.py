@@ -21,7 +21,7 @@ class DataLoader:
 
     MAX_FILE_SIZE_MB = 50  # 50MB limit
 
-    def __init__(self, chunk_size: int = 1000, chunk_overlap: int = 200):
+    def __init__(self, chunk_size: int = 500, chunk_overlap: int = 100):
         self.splitter = RecursiveCharacterTextSplitter(
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap
@@ -75,22 +75,26 @@ class DataLoader:
 
         documents = loader.load()
 
-        # ✅ Add metadata
+        PRINTED_OFFSET = 226
+
         for doc in documents:
             doc.metadata["source_file"] = path.name
             doc.metadata["file_size_mb"] = round(file_size_mb, 2)
 
+            internal_page = int(doc.metadata.get("page", 0))
+            doc.metadata["page"] = internal_page + PRINTED_OFFSET
+
         return documents
 
-def split_documents(self, documents: List[Document]) -> List[Document]:
-    chunks = self.splitter.split_documents(documents)
+    def split_documents(self, documents: List[Document]) -> List[Document]:
+        chunks = self.splitter.split_documents(documents)
 
-    # Ensure metadata is preserved properly
-    for chunk in chunks:
-        chunk.metadata["page"] = chunk.metadata.get("page", "Unknown")
-        chunk.metadata["source_file"] = chunk.metadata.get("source_file", "Unknown")
+        # Ensure metadata is preserved properly
+        for chunk in chunks:
+            chunk.metadata["page"] = int(chunk.metadata.get("page", 0))
+            chunk.metadata["source_file"] = chunk.metadata.get("source_file", "Unknown")
 
-    return chunks
+        return chunks
 
     def load_and_split(self, file_path: str) -> List[Document]:
         """
