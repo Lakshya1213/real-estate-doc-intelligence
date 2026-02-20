@@ -145,8 +145,6 @@ Upload embedding latency
 
 File size limit (50MB) to prevent:
 
-GPU OOM
-
 Memory overload
 
 Denial-of-service
