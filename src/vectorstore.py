@@ -6,9 +6,7 @@ from sentence_transformers import SentenceTransformer
 import torch
 
 
-# -------------------------------------------------
-# 🔥 Load embedding model once (GPU if available)
-# -------------------------------------------------
+## Checks GPU 
 if torch.cuda.is_available():
     device = "cuda"
 else:
@@ -33,7 +31,7 @@ class FaissVectorStore:
         self.index_path = os.path.join(self.persist_dir, "faiss.index")
         self.meta_path = os.path.join(self.persist_dir, "metadata.pkl")
 
-    # ---------------- STORE (Append Mode) ----------------
+    # STORE (Append Mode) 
     def store(self, embeddings: np.ndarray, metadata: list):
 
         embeddings = embeddings.astype("float32")
@@ -63,7 +61,7 @@ class FaissVectorStore:
 
         print(f"[INFO] Total vectors in index: {self.index.ntotal}")
 
-    # ---------------- LOAD ----------------
+    # LOAD 
     def load(self):
         if not os.path.exists(self.index_path):
             raise FileNotFoundError("FAISS index not found. Upload document first.")
@@ -75,7 +73,7 @@ class FaissVectorStore:
 
         print("[INFO] FAISS index loaded successfully.")
 
-    # ---------------- SEARCH ----------------
+    #  SEARCH 
     def search(self, query_text: str, top_k: int = 5):
 
         if self.index is None:

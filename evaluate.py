@@ -45,7 +45,7 @@ def retrieve_and_rerank(query, top_k, retrieval_k=20):
 
 
 # Interactive Testing Mode
-print("\n🔎 Retrieval + Reranking Testing Mode")
+print("\n Retrieval + Reranking Testing Mode")
 print("Type 'exit' to stop.\n")
 
 while True:

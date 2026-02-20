@@ -67,8 +67,7 @@ async function sendChatMessage() {
                 "Content-Type": "application/json"
             },
             body: JSON.stringify({
-                query: text,
-                top_k: 10
+                query: text
             })
         });
 

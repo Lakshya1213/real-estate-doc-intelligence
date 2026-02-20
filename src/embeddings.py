@@ -26,7 +26,7 @@ class EmbeddingPipeline:
 
         # Load model
         self.model = SentenceTransformer(model_name, device=self.device)
-        print(f"[INFO] Loaded embedding model: {model_name} on {self.device}")
+        # print(f"[INFO] Loaded embedding model: {model_name} on {self.device}")
 
     
     # Chunk Documents
@@ -39,7 +39,7 @@ class EmbeddingPipeline:
         )
 
         chunks = splitter.split_documents(documents)
-        print(f"[INFO] Split {len(documents)} docs → {len(chunks)} chunks.")
+        # print(f"[INFO] Split {len(documents)} docs → {len(chunks)} chunks.")
         return chunks
 
     # -------------------------------
@@ -48,7 +48,7 @@ class EmbeddingPipeline:
     def embed_chunks(self, chunks: List[Any]) -> np.ndarray:
         texts = [chunk.page_content for chunk in chunks]
 
-        print(f"[INFO] Generating embeddings for {len(texts)} chunks on {self.device}...")
+        # print(f"[INFO] Generating embeddings for {len(texts)} chunks on {self.device}...")
 
         start_time = time.perf_counter()
 

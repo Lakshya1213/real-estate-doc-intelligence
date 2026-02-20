@@ -75,14 +75,10 @@ class DataLoader:
 
         documents = loader.load()
 
-        PRINTED_OFFSET = 226
 
         for doc in documents:
             doc.metadata["source_file"] = path.name
             doc.metadata["file_size_mb"] = round(file_size_mb, 2)
-
-            internal_page = int(doc.metadata.get("page", 0))
-            doc.metadata["page"] = internal_page + PRINTED_OFFSET
 
         return documents
 
