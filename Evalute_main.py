@@ -71,7 +71,9 @@ evaluation_data = [
 ]
 
 
-# EVALUATION FUNCTION
+import time
+import numpy as np
+
 def evaluate(evaluation_data, top_k):
 
     correct = 0
@@ -84,18 +86,19 @@ def evaluate(evaluation_data, top_k):
 
         print(f"\nQuery: {query}")
 
-        start = time.time()
+        start = time.perf_counter()
         results = retrieve_and_rerank(query, top_k)
-        end = time.time()
+        end = time.perf_counter()
 
-        query_times.append(end - start)
+        latency = end - start
+        query_times.append(latency)
 
         found = False
         retrieved_pages = []
 
         for doc in results:
             internal_page = doc["page"]
-            printed_page = internal_page 
+            printed_page = internal_page
             retrieved_pages.append(printed_page)
 
             if printed_page == expected_page:
@@ -103,16 +106,22 @@ def evaluate(evaluation_data, top_k):
                 break
 
         print(f"Expected page: {expected_page}")
-        print(f"Retrieved pages (printed): {retrieved_pages}")
+        print(f"Retrieved pages: {retrieved_pages}")
+        print(f"Query latency: {latency:.4f} sec")
 
         if found:
             correct += 1
 
     accuracy = correct / total if total > 0 else 0
 
+    # Performance metrics
+    avg_latency = np.mean(query_times)
+    p95_latency = np.percentile(query_times, 95)
+
     print(f"\n===== Evaluation for k = {top_k} =====")
     print(f"Accuracy: {accuracy:.2f}")
-    print(f"Average Query Time: {sum(query_times)/total:.4f} sec")
+    print(f"Average Query Latency: {avg_latency:.4f} sec")
+    print(f"P95 Latency: {p95_latency:.4f} sec")
     print("=====================================\n")
 
 

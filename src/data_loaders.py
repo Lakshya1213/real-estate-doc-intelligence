@@ -21,7 +21,7 @@ class DataLoader:
 
     MAX_FILE_SIZE_MB = 50  # 50MB limit
 
-    def __init__(self, chunk_size: int = 500, chunk_overlap: int = 100):
+    def __init__(self, chunk_size: int = 800, chunk_overlap: int = 200):
         self.splitter = RecursiveCharacterTextSplitter(
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap
@@ -34,11 +34,11 @@ class DataLoader:
 
         path = Path(file_path)
 
-        # ✅ Check if file exists
+        #  Check if file exists
         if not path.exists():
             raise FileNotFoundError(f"File not found: {file_path}")
 
-        # ✅ Check file size
+        #  Check file size
         file_size_mb = path.stat().st_size / (1024 * 1024)
         if file_size_mb > self.MAX_FILE_SIZE_MB:
             raise ValueError(
@@ -47,7 +47,7 @@ class DataLoader:
 
         suffix = path.suffix.lower()
 
-        # ✅ Choose correct loader
+        # Choose correct loader
         if suffix == ".pdf":
             loader = PyPDFLoader(str(path))
 
@@ -89,7 +89,7 @@ class DataLoader:
     def split_documents(self, documents: List[Document]) -> List[Document]:
         chunks = self.splitter.split_documents(documents)
 
-        # Ensure metadata is preserved properly
+        # Store meta data
         for chunk in chunks:
             chunk.metadata["page"] = int(chunk.metadata.get("page", 0))
             chunk.metadata["source_file"] = chunk.metadata.get("source_file", "Unknown")

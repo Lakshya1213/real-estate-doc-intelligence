@@ -1,71 +1,50 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
+  <head>
+    <meta charset="UTF-8" />
     <title>Real Estate Intelligence</title>
-    <link rel="stylesheet" href="../static/style.css">
-</head>
-<body>
-
-<div class="container">
-
-    <div class="hero">
+    <link rel="stylesheet" href="../static/style.css" />
+  </head>
+  <body>
+    <div class="container">
+      <div class="hero">
         <h1>Real Estate Intelligence</h1>
         <p>Enterprise-grade AI document retrieval system</p>
-    </div>
+      </div>
 
-    <div class="card">
+      <div class="card">
         <h2>Upload Document</h2>
-<input type="file" id="pdfFile" multiple>
-<div id="fileList" style="margin-top:10px; color:white;"></div>
+        <input type="file" id="pdfFile" multiple />
+        <div id="fileList" style="margin-top: 10px; color: white"></div>
 
-        <button onclick="uploaddocument()" class="primary-btn">Do Emebbings</button>
+        <button onclick="uploaddocument()" class="primary-btn">
+          Do Emebbings
+        </button>
         <p id="uploadStatus"></p>
-    </div>
+      </div>
 
-    
-    
+      <div class="card">
+        <h2>Conversation</h2>
 
-    <div class="card">
-    <h2>Conversation</h2>
-
-    <div id="chatBox" class="chat-box">
-        <div class="chat-message ai">
+        <div id="chatBox" class="chat-box">
+          <div class="chat-message ai">
             👋 Upload a document and start asking multiple questions.
+          </div>
         </div>
-    </div>
 
-    <div class="chat-input-area">
-        <input type="text" id="chatInput" placeholder="Ask follow-up question...">
-        <button onclick="sendChatMessage()()" class="primary-btn">Send</button>
-    </div>
-</div>
-
-
-    <div class="card metrics">
-        <h2>System Metrics</h2>
-        <div class="metric-grid">
-            <div>
-                <h3>Avg Latency</h3>
-                <p>0.42s</p>
-            </div>
-            <div>
-                <h3>P95 Latency</h3>
-                <p>0.88s</p>
-            </div>
-            <div>
-                <h3>Top-1 Accuracy</h3>
-                <p>75%</p>
-            </div>
-            <div>
-                <h3>Top-3 Accuracy</h3>
-                <p>90%</p>
-            </div>
+        <div class="chat-input-area">
+          <input
+            type="text"
+            id="chatInput"
+            placeholder="Ask follow-up question..."
+          />
+          <button onclick="sendChatMessage()()" class="primary-btn">
+            Send
+          </button>
         </div>
+      </div>
     </div>
 
-</div>
-
-<script src="/static/script_v1.js"></script>
-</body>
+    <script src="/static/script_v1.js"></script>
+  </body>
 </html>

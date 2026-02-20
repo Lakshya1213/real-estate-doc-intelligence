@@ -10,8 +10,8 @@ class EmbeddingPipeline:
     def __init__(
         self,
         model_name: str = "BAAI/bge-base-en-v1.5",
-        chunk_size: int = 500,
-        chunk_overlap: int = 100,
+        chunk_size: int = 800,
+        chunk_overlap: int = 200,
         use_gpu: bool = True
     ):
         self.chunk_size = chunk_size
@@ -28,9 +28,8 @@ class EmbeddingPipeline:
         self.model = SentenceTransformer(model_name, device=self.device)
         print(f"[INFO] Loaded embedding model: {model_name} on {self.device}")
 
-    # -------------------------------
+    
     # Chunk Documents
-    # -------------------------------
     def chunk_documents(self, documents: List[Any]) -> List[Any]:
         splitter = RecursiveCharacterTextSplitter(
             chunk_size=self.chunk_size,
