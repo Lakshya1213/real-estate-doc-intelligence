@@ -19,7 +19,7 @@ templates = Jinja2Templates(directory="app/templates")
 UPLOAD_DIR = "data"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-# LOAD RAG COMPONENTS (NO FAISS LOAD HERE)
+# LOAD RAG COMPONENTS
 from src.data_loaders import DataLoader
 from src.embeddings import EmbeddingPipeline
 from src.vectorstore import FaissVectorStore
@@ -27,21 +27,38 @@ from src.vectorstore import FaissVectorStore
 embedding_pipeline = EmbeddingPipeline()
 vector_store = FaissVectorStore("faiss_store")
 
-# print("[INFO] Loading Cross-Encoder reranker...")
+# RERANK MODEL
 RERANK_MODEL_NAME = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 reranker = CrossEncoder(RERANK_MODEL_NAME)
 
-# Number of docs retrieved BEFORE reranking
-RETRIEVAL_K = 10   # FAISS retrieval
-RERANK_TOP_K = 5   # final chunks sent to LLM
+# Retrieval settings
+RETRIEVAL_K = 10
+RERANK_TOP_K = 5
 
 # GROQ CLIENT
 groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
+# ---------------------------------------
+# CACHES
+# ---------------------------------------
+
+# Cache for retrieval + reranking results
+retrieval_cache = {}
+
+# Cache for final LLM responses
+response_cache = {}
+
+# ---------------------------------------
 # HOME ROUTE
+# ---------------------------------------
+
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
+
+# ---------------------------------------
+# FILE UPLOAD
+# ---------------------------------------
 
 @app.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
@@ -74,73 +91,107 @@ async def upload_file(file: UploadFile = File(...)):
         ]
     )
 
-    #  Load FAISS AFTER creation
+    # Load FAISS index
     vector_store.load()
 
+    # IMPORTANT: Clear caches because documents changed
+    retrieval_cache.clear()
+    response_cache.clear()
+
     print("[INFO] FAISS index created and loaded")
+    print("[INFO] Cache cleared after new upload")
 
     return {
         "message": "File uploaded, embeddings created, FAISS index ready.",
         "chunks": len(chunks)
     }
 
+# ---------------------------------------
 # QUERY MODEL
+# ---------------------------------------
 
 class QueryRequest(BaseModel):
     query: str
 
+
+# ---------------------------------------
+# RETRIEVE + RERANK WITH CACHE
+# ---------------------------------------
+
 def retrieve_and_rerank(query: str, top_k: int):
+
+    cache_key = f"{query}_{top_k}"
+
+    # CACHE HIT
+    if cache_key in retrieval_cache:
+        print("[CACHE HIT] Retrieval")
+        return retrieval_cache[cache_key]
 
     # Guard: FAISS must exist
     if not vector_store.index:
         return []
 
-    # Retrieve
+    # Retrieve from FAISS
     results = vector_store.search(query, top_k=RETRIEVAL_K)
 
     if not results:
         return []
 
-    #  Prepare rerank pairs
+    # Prepare rerank pairs
     pairs = [[query, doc["text"]] for doc in results]
 
-    #  Rerank
+    # Rerank
     scores = reranker.predict(pairs, batch_size=8)
 
     for doc, score in zip(results, scores):
         doc["rerank_score"] = float(score)
 
-    #  Sort
+    # Sort by rerank score
     results = sorted(
         results,
         key=lambda x: x["rerank_score"],
         reverse=True
     )
 
-    return results[:top_k]
+    final_results = results[:top_k]
 
+    # SAVE IN CACHE
+    retrieval_cache[cache_key] = final_results
+
+    return final_results
+
+
+# ---------------------------------------
 # SEARCH + RAG ROUTE
+# ---------------------------------------
+
 @app.post("/search")
 async def search_documents(request: QueryRequest):
 
-    ## checks index are present or not
+    query = request.query.strip().lower()
+
+    # CHECK RESPONSE CACHE
+    if query in response_cache:
+        print("[CACHE HIT] LLM Response")
+        return response_cache[query]
+
     if not vector_store.index:
         return {
             "answer": "Please upload a document first before searching."
         }
 
-    # Retrieve + rerank(For better ouptut)
+    # Retrieve + rerank
     results = retrieve_and_rerank(
-        query=request.query,
+        query=query,
         top_k=RERANK_TOP_K
-)
+    )
 
     if not results:
         return {
             "answer": "No relevant information found in uploaded documents."
         }
 
-    # We Want in this fromat context
+    # Build context
     context = ""
     for r in results:
         context += f"""
@@ -165,31 +216,28 @@ STRICT RULES:
 - If the answer is truly absent, say exactly:
   "I could not find this information in the uploaded documents."
 
-NUMERICAL & FACTUAL RULES (VERY IMPORTANT):
-- If numbers, percentages, years, quantities, or monetary values appear in the context,
-  you MUST quote them EXACTLY as written.
-- Even partial numerical information must be reported.
-- Do NOT refuse when numerical values are present.
+NUMERICAL & FACTUAL RULES:
+- If numbers, percentages, years, quantities, or monetary values appear,
+  quote them EXACTLY as written.
 
 CITATION RULES:
 - Always mention the PDF name.
 - Always mention the page number.
-- Format citations clearly.
 
 ANSWER FORMAT:
-  (Source: <PDF name>, Page <page number>)
-- Give a direct answer first.
-- Then cite the source in this format:
+(Source: <PDF name>, Page <page number>)
+Direct answer first, then citation.
 
 Context:
 {context}
 
 Question:
-{request.query}
+{query}
 
 Answer:
 """
 
+    # LLM GENERATION
     response = groq_client.chat.completions.create(
         model="llama-3.1-8b-instant",
         messages=[{"role": "user", "content": prompt}],
@@ -198,8 +246,13 @@ Answer:
 
     final_answer = response.choices[0].message.content.strip()
 
-    return {
-        "question": request.query,
+    result = {
+        "question": query,
         "answer": final_answer,
         "sources": results
     }
+
+    # SAVE RESPONSE IN CACHE
+    response_cache[query] = result
+
+    return result
