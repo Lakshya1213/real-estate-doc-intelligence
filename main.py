@@ -4,9 +4,10 @@ from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import os
+import numpy as np
 from dotenv import load_dotenv
 from groq import Groq
-from sentence_transformers import CrossEncoder
+from sentence_transformers import CrossEncoder, SentenceTransformer
 
 # ENV & APP SETUP
 load_dotenv()
@@ -27,9 +28,16 @@ from src.vectorstore import FaissVectorStore
 embedding_pipeline = EmbeddingPipeline()
 vector_store = FaissVectorStore("faiss_store")
 
+# ---------------------------------------
+# MODELS
+# ---------------------------------------
+
 # RERANK MODEL
 RERANK_MODEL_NAME = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 reranker = CrossEncoder(RERANK_MODEL_NAME)
+
+# QUERY EMBEDDING MODEL (for semantic cache)
+query_embedder = SentenceTransformer("all-MiniLM-L6-v2")
 
 # Retrieval settings
 RETRIEVAL_K = 10
@@ -42,11 +50,37 @@ groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 # CACHES
 # ---------------------------------------
 
-# Cache for retrieval + reranking results
+# Retrieval cache
 retrieval_cache = {}
 
-# Cache for final LLM responses
+# Final response cache
 response_cache = {}
+
+# Query embedding cache (for semantic similarity)
+query_embedding_cache = {}
+
+# ---------------------------------------
+# UTILITY FUNCTIONS
+# ---------------------------------------
+
+def cosine_similarity(a, b):
+    return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
+
+
+def check_semantic_cache(query):
+
+    query_emb = query_embedder.encode(query)
+
+    for cached_query, cached_emb in query_embedding_cache.items():
+
+        sim = cosine_similarity(query_emb, cached_emb)
+
+        if sim > 0.90:
+            print(f"[SEMANTIC CACHE HIT] Similar to: {cached_query}")
+            return cached_query
+
+    return None
+
 
 # ---------------------------------------
 # HOME ROUTE
@@ -55,6 +89,7 @@ response_cache = {}
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
+
 
 # ---------------------------------------
 # FILE UPLOAD
@@ -70,7 +105,6 @@ async def upload_file(file: UploadFile = File(...)):
 
     print("[INFO] File uploaded:", file.filename)
 
-    # Load document
     loader = DataLoader()
     documents = loader.load_file(file_path)
 
@@ -94,17 +128,19 @@ async def upload_file(file: UploadFile = File(...)):
     # Load FAISS index
     vector_store.load()
 
-    # IMPORTANT: Clear caches because documents changed
+    # Clear caches after new document
     retrieval_cache.clear()
     response_cache.clear()
+    query_embedding_cache.clear()
 
     print("[INFO] FAISS index created and loaded")
-    print("[INFO] Cache cleared after new upload")
+    print("[INFO] Cache cleared after upload")
 
     return {
         "message": "File uploaded, embeddings created, FAISS index ready.",
         "chunks": len(chunks)
     }
+
 
 # ---------------------------------------
 # QUERY MODEL
@@ -115,19 +151,17 @@ class QueryRequest(BaseModel):
 
 
 # ---------------------------------------
-# RETRIEVE + RERANK WITH CACHE
+# RETRIEVE + RERANK
 # ---------------------------------------
 
 def retrieve_and_rerank(query: str, top_k: int):
 
     cache_key = f"{query}_{top_k}"
 
-    # CACHE HIT
     if cache_key in retrieval_cache:
         print("[CACHE HIT] Retrieval")
         return retrieval_cache[cache_key]
 
-    # Guard: FAISS must exist
     if not vector_store.index:
         return []
 
@@ -140,13 +174,11 @@ def retrieve_and_rerank(query: str, top_k: int):
     # Prepare rerank pairs
     pairs = [[query, doc["text"]] for doc in results]
 
-    # Rerank
     scores = reranker.predict(pairs, batch_size=8)
 
     for doc, score in zip(results, scores):
         doc["rerank_score"] = float(score)
 
-    # Sort by rerank score
     results = sorted(
         results,
         key=lambda x: x["rerank_score"],
@@ -155,7 +187,6 @@ def retrieve_and_rerank(query: str, top_k: int):
 
     final_results = results[:top_k]
 
-    # SAVE IN CACHE
     retrieval_cache[cache_key] = final_results
 
     return final_results
@@ -170,9 +201,22 @@ async def search_documents(request: QueryRequest):
 
     query = request.query.strip().lower()
 
-    # CHECK RESPONSE CACHE
+    # -------------------------
+    # SEMANTIC CACHE CHECK
+    # -------------------------
+
+    similar_query = check_semantic_cache(query)
+
+    if similar_query and similar_query in response_cache:
+        print("[CACHE HIT] Semantic Response")
+        return response_cache[similar_query]
+
+    # -------------------------
+    # NORMAL CACHE CHECK
+    # -------------------------
+
     if query in response_cache:
-        print("[CACHE HIT] LLM Response")
+        print("[CACHE HIT] Exact Response")
         return response_cache[query]
 
     if not vector_store.index:
@@ -191,8 +235,12 @@ async def search_documents(request: QueryRequest):
             "answer": "No relevant information found in uploaded documents."
         }
 
-    # Build context
+    # -------------------------
+    # BUILD CONTEXT
+    # -------------------------
+
     context = ""
+
     for r in results:
         context += f"""
 Source: {r.get('source')}
@@ -214,11 +262,7 @@ STRICT RULES:
 - Do NOT hallucinate or assume.
 - If relevant information exists in the context, you MUST answer.
 - If the answer is truly absent, say exactly:
-  "I could not find this information in the uploaded documents."
-
-NUMERICAL & FACTUAL RULES:
-- If numbers, percentages, years, quantities, or monetary values appear,
-  quote them EXACTLY as written.
+"I could not find this information in the uploaded documents."
 
 CITATION RULES:
 - Always mention the PDF name.
@@ -237,7 +281,10 @@ Question:
 Answer:
 """
 
+    # -------------------------
     # LLM GENERATION
+    # -------------------------
+
     response = groq_client.chat.completions.create(
         model="llama-3.1-8b-instant",
         messages=[{"role": "user", "content": prompt}],
@@ -252,7 +299,12 @@ Answer:
         "sources": results
     }
 
-    # SAVE RESPONSE IN CACHE
+    # -------------------------
+    # SAVE CACHE
+    # -------------------------
+
     response_cache[query] = result
+
+    query_embedding_cache[query] = query_embedder.encode(query)
 
     return result
