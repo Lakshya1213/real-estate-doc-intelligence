@@ -8,6 +8,7 @@ import numpy as np
 from dotenv import load_dotenv
 from groq import Groq
 from sentence_transformers import CrossEncoder, SentenceTransformer
+import time
 
 # ENV & APP SETUP
 load_dotenv()
@@ -32,31 +33,22 @@ vector_store = FaissVectorStore("faiss_store")
 # MODELS
 # ---------------------------------------
 
-# RERANK MODEL
 RERANK_MODEL_NAME = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 reranker = CrossEncoder(RERANK_MODEL_NAME)
 
-# QUERY EMBEDDING MODEL (for semantic cache)
-query_embedder = SentenceTransformer("all-MiniLM-L6-v2")
+query_embedder = SentenceTransformer("BAAI/bge-small-en-v1.5")
 
-# Retrieval settings
-RETRIEVAL_K = 10
-RERANK_TOP_K = 5
+RETRIEVAL_K = 6
+RERANK_TOP_K = 3
 
-# GROQ CLIENT
 groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 # ---------------------------------------
 # CACHES
 # ---------------------------------------
 
-# Retrieval cache
 retrieval_cache = {}
-
-# Final response cache
 response_cache = {}
-
-# Query embedding cache (for semantic similarity)
 query_embedding_cache = {}
 
 # ---------------------------------------
@@ -67,9 +59,18 @@ def cosine_similarity(a, b):
     return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
 
 
-def check_semantic_cache(query):
+def print_latency(embed=0, retrieval=0, rerank=0, generation=0, total=0):
 
-    query_emb = query_embedder.encode(query)
+    print("\n----- LATENCY BREAKDOWN -----")
+    print(f"Embedding  → {embed:.2f} ms")
+    print(f"Retrieval  → {retrieval:.2f} ms")
+    print(f"Reranking  → {rerank:.2f} ms")
+    print(f"Generation → {generation:.2f} ms")
+    print(f"Total      → {total:.2f} ms")
+    print("-----------------------------\n")
+
+
+def check_semantic_cache(query_emb):
 
     for cached_query, cached_emb in query_embedding_cache.items():
 
@@ -108,11 +109,9 @@ async def upload_file(file: UploadFile = File(...)):
     loader = DataLoader()
     documents = loader.load_file(file_path)
 
-    # Chunk + embed
     chunks = embedding_pipeline.chunk_documents(documents)
     embeddings = embedding_pipeline.embed_chunks(chunks)
 
-    # Store in FAISS
     vector_store.store(
         embeddings.astype("float32"),
         [
@@ -125,10 +124,8 @@ async def upload_file(file: UploadFile = File(...)):
         ]
     )
 
-    # Load FAISS index
     vector_store.load()
 
-    # Clear caches after new document
     retrieval_cache.clear()
     response_cache.clear()
     query_embedding_cache.clear()
@@ -160,21 +157,25 @@ def retrieve_and_rerank(query: str, top_k: int):
 
     if cache_key in retrieval_cache:
         print("[CACHE HIT] Retrieval")
-        return retrieval_cache[cache_key]
+        return retrieval_cache[cache_key], 0, 0
 
     if not vector_store.index:
-        return []
+        return [], 0, 0
 
-    # Retrieve from FAISS
+    retrieval_start = time.perf_counter()
+
     results = vector_store.search(query, top_k=RETRIEVAL_K)
 
-    if not results:
-        return []
+    retrieval_time = (time.perf_counter() - retrieval_start) * 1000
 
-    # Prepare rerank pairs
+    if not results:
+        return [], retrieval_time, 0
+
+    rerank_start = time.perf_counter()
+
     pairs = [[query, doc["text"]] for doc in results]
 
-    scores = reranker.predict(pairs, batch_size=8)
+    scores = reranker.predict(pairs, batch_size=16)
 
     for doc, score in zip(results, scores):
         doc["rerank_score"] = float(score)
@@ -187,53 +188,90 @@ def retrieve_and_rerank(query: str, top_k: int):
 
     final_results = results[:top_k]
 
+    rerank_time = (time.perf_counter() - rerank_start) * 1000
+
     retrieval_cache[cache_key] = final_results
 
-    return final_results
+    return final_results, retrieval_time, rerank_time
 
 
 # ---------------------------------------
-# SEARCH + RAG ROUTE
+# SEARCH ROUTE
 # ---------------------------------------
 
 @app.post("/search")
 async def search_documents(request: QueryRequest):
 
+    total_start = time.perf_counter()
+
     query = request.query.strip().lower()
+
+    # -------------------------
+    # EMBEDDING TIMER
+    # -------------------------
+
+    embed_start = time.perf_counter()
+
+    query_embedding = query_embedder.encode(query)
+
+    embed_time = (time.perf_counter() - embed_start) * 1000
 
     # -------------------------
     # SEMANTIC CACHE CHECK
     # -------------------------
 
-    similar_query = check_semantic_cache(query)
+    similar_query = check_semantic_cache(query_embedding)
 
     if similar_query and similar_query in response_cache:
+
+        total_time = (time.perf_counter() - total_start) * 1000
+
         print("[CACHE HIT] Semantic Response")
+
+        print_latency(
+            embed_time,
+            0,
+            0,
+            0,
+            total_time
+        )
+
         return response_cache[similar_query]
 
     # -------------------------
-    # NORMAL CACHE CHECK
+    # EXACT CACHE
     # -------------------------
 
     if query in response_cache:
+
+        total_time = (time.perf_counter() - total_start) * 1000
+
         print("[CACHE HIT] Exact Response")
+
+        print_latency(
+            embed_time,
+            0,
+            0,
+            0,
+            total_time
+        )
+
         return response_cache[query]
 
     if not vector_store.index:
-        return {
-            "answer": "Please upload a document first before searching."
-        }
+        return {"answer": "Please upload a document first."}
 
-    # Retrieve + rerank
-    results = retrieve_and_rerank(
-        query=query,
-        top_k=RERANK_TOP_K
+    # -------------------------
+    # RETRIEVE + RERANK
+    # -------------------------
+
+    results, retrieval_time, rerank_time = retrieve_and_rerank(
+        query,
+        RERANK_TOP_K
     )
 
     if not results:
-        return {
-            "answer": "No relevant information found in uploaded documents."
-        }
+        return {"answer": "No relevant information found."}
 
     # -------------------------
     # BUILD CONTEXT
@@ -242,35 +280,19 @@ async def search_documents(request: QueryRequest):
     context = ""
 
     for r in results:
-        context += f"""
-Source: {r.get('source')}
-Page: {r.get('page')}
-Content:
-{r.get('text')}
+        text = r.get("text")[:500]  # limit tokens
 
----
-"""
+        context += f"""
+    Source: {r.get('source')}
+    Page: {r.get('page')}
+    Content:
+    {text}
+    """
 
     prompt = f"""
 You are a precise document-based AI assistant.
 
-Your task:
-Answer the question using ONLY the provided context.
-
-STRICT RULES:
-- Do NOT use outside knowledge.
-- Do NOT hallucinate or assume.
-- If relevant information exists in the context, you MUST answer.
-- If the answer is truly absent, say exactly:
-"I could not find this information in the uploaded documents."
-
-CITATION RULES:
-- Always mention the PDF name.
-- Always mention the page number.
-
-ANSWER FORMAT:
-(Source: <PDF name>, Page <page number>)
-Direct answer first, then citation.
+Use ONLY the provided context.
 
 Context:
 {context}
@@ -282,8 +304,10 @@ Answer:
 """
 
     # -------------------------
-    # LLM GENERATION
+    # GENERATION TIMER
     # -------------------------
+
+    gen_start = time.perf_counter()
 
     response = groq_client.chat.completions.create(
         model="llama-3.1-8b-instant",
@@ -291,20 +315,38 @@ Answer:
         temperature=0.3
     )
 
+    gen_time = (time.perf_counter() - gen_start) * 1000
+
     final_answer = response.choices[0].message.content.strip()
+
+    total_time = (time.perf_counter() - total_start) * 1000
+
+    # -------------------------
+    # PRINT LATENCY
+    # -------------------------
+
+    print_latency(
+        embed_time,
+        retrieval_time,
+        rerank_time,
+        gen_time,
+        total_time
+    )
 
     result = {
         "question": query,
         "answer": final_answer,
-        "sources": results
+        "sources": results,
+        "latency": {
+            "embedding_ms": round(embed_time,2),
+            "retrieval_ms": round(retrieval_time,2),
+            "rerank_ms": round(rerank_time,2),
+            "generation_ms": round(gen_time,2),
+            "total_ms": round(total_time,2)
+        }
     }
 
-    # -------------------------
-    # SAVE CACHE
-    # -------------------------
-
     response_cache[query] = result
-
-    query_embedding_cache[query] = query_embedder.encode(query)
+    query_embedding_cache[query] = query_embedding
 
     return result

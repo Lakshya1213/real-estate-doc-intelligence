@@ -9,7 +9,7 @@ import time
 class EmbeddingPipeline:
     def __init__(
         self,
-        model_name: str = "BAAI/bge-base-en-v1.5",
+        model_name: str = "BAAI/bge-small-en-v1.5",
         chunk_size: int = 800,
         chunk_overlap: int = 200,
         use_gpu: bool = True
@@ -26,7 +26,7 @@ class EmbeddingPipeline:
 
         # Load model
         self.model = SentenceTransformer(model_name, device=self.device)
-        # print(f"[INFO] Loaded embedding model: {model_name} on {self.device}")
+        print(f"[INFO] Loaded embedding model: {model_name} on {self.device}")
 
     
     # Chunk Documents
@@ -48,18 +48,17 @@ class EmbeddingPipeline:
     def embed_chunks(self, chunks: List[Any]) -> np.ndarray:
         texts = [chunk.page_content for chunk in chunks]
 
-        # print(f"[INFO] Generating embeddings for {len(texts)} chunks on {self.device}...")
+        print(f"[INFO] Generating embeddings for {len(texts)} chunks on {self.device}...")
 
         start_time = time.perf_counter()
 
         embeddings = self.model.encode(
-            texts,
-            show_progress_bar=True,
-            convert_to_numpy=True,
-            device=self.device, 
-            normalize_embeddings=True
-        )
-
+    texts,
+    batch_size=32,
+    show_progress_bar=True,
+    convert_to_numpy=True,
+    normalize_embeddings=True
+)
         end_time = time.perf_counter()
         total_time = end_time - start_time
 

@@ -13,7 +13,7 @@ else:
     device = "cpu"
 
 embedding_model = SentenceTransformer(
-    "BAAI/bge-base-en-v1.5",
+    "BAAI/bge-small-en-v1.5",
     device=device
 )
 
@@ -82,6 +82,8 @@ class FaissVectorStore:
         # Encode query (same model as document embedding)
         query_embedding = embedding_model.encode(
         [query_text],
+         batch_size=32,
+
         convert_to_numpy=True,
         normalize_embeddings=True
     ).astype("float32")
