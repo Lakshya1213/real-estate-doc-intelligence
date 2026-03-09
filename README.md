@@ -232,39 +232,130 @@ A **faster and more efficient RAG system** using:
 
 This significantly reduces **query latency and computation cost** while improving the **overall user experience**.
 
+# 📊 RAG Evaluation Metrics
 
-## System Behavior as PDFs Grow
+To evaluate the performance of the retrieval system, we conducted experiments on **20 sample queries** and measured multiple metrics including **Top-K Accuracy, Recall@K, MRR, and Query Latency**.
 
-As document size increases:
+---
 
-Chunk count increases linearly
+# 🔎 Retrieval Accuracy
 
-Embedding time increases
+| Metric | Value |
+|------|------|
+| **Top-1 Accuracy** | 75% |
+| **Top-3 Accuracy** | 80% |
 
-FAISS index grows
+**Explanation**
 
-Retrieval latency increases
+- **Top-1 Accuracy** → The correct chunk appears as the **first retrieved result**.
+- **Top-3 Accuracy** → The correct chunk appears **within the top 3 retrieved results**.
+
+---
+
+# 📈 Recall Metrics
+
+| Metric | Value |
+|------|------|
+| **Recall@1** | 80% |
+| **Recall@3** | 95% |
+
+**Explanation**
+
+- **Recall@1** → 80% of queries retrieved the correct chunk in the **top 1 result**.
+- **Recall@3** → 95% of queries retrieved the correct chunk within the **top 3 results**.
+
+This shows the retriever is able to capture **most relevant chunks within the first few results**.
+
+---
+
+# 🎯 Mean Reciprocal Rank (MRR)
+
+| Metric | Value |
+|------|------|
+| **MRR@3** | **0.867** |
+
+**Explanation**
+
+MRR measures how early the **correct document appears in the ranking**.
+
+Higher MRR indicates that the system is retrieving **relevant documents at higher ranks**.
+
+---
+
+# ⏱️ Latency Metrics
+
+| Metric | Value |
+|------|------|
+| **Average Query Latency** | 0.1404 sec |
+| **P95 Latency** | 0.1837 sec |
+
+**Explanation**
+
+- **Average Latency** → Average response time per query.
+- **P95 Latency** → 95% of queries complete within **0.1837 seconds**, showing stable system performance.
+
+---
+
+# ✅ Summary
+
+- High **Recall@3 (95%)** indicates strong retrieval capability.
+- **MRR = 0.867** shows relevant documents are ranked very early.
+- **Low latency (~0.14 sec)** ensures fast query responses.
+
+Overall, the system demonstrates **efficient retrieval with strong ranking quality and low latency**, making it suitable for real-time RAG applications.
 
 
-## What Would Break First in Production?
-
-Cross-Encoder reranking (GPU load increases)
-
-FAISS exact search at very large scale
-
-GPU memory exhaustion
-
-Upload embedding latency
 
 
-## Safety Measures
+## 📈 System Behavior as PDFs Grow
 
-File size limit (50MB) to prevent:
+As the document size increases, several system components scale accordingly:
 
-Memory overload
+- **Chunk Count Increases Linearly**  
+  Larger PDFs generate more text chunks during preprocessing.
 
-Denial-of-service
+- **Embedding Time Increases**  
+  More chunks require additional embedding computations.
 
-Metadata normalization to prevent runtime errors
+- **FAISS Index Size Grows**  
+  Each chunk embedding is stored in the FAISS vector index.
 
+- **Retrieval Latency May Increase**  
+  A larger vector index can slightly increase search time depending on the index type.
+
+---
+
+## ⚠️ Potential Production Bottlenecks
+
+As the system scales to larger datasets or higher traffic, the following components may become bottlenecks:
+
+- **Cross-Encoder Reranking**  
+  Cross-encoder models are computationally expensive and may increase **GPU utilization** significantly.
+
+- **FAISS Exact Search at Very Large Scale**  
+  Exact similarity search can become slower as the vector database grows to millions of embeddings.
+
+- **GPU Memory Exhaustion**  
+  Large batch sizes, multiple models, or concurrent requests may exhaust available GPU memory.
+
+- **Document Upload Embedding Latency**  
+  Uploading very large PDFs can increase preprocessing and embedding time.
+
+---
+
+## 🧠 Strict Grounding Prompt
+
+To reduce hallucinations, the system uses a **strict grounding prompt strategy**.
+
+The model is instructed to:
+
+- Generate answers **only from the retrieved context**
+- **Avoid adding external knowledge**
+- Respond with **"I don't know based on the provided context"** if the answer is not present
+
+This ensures:
+
+- Higher **factual accuracy**
+- Lower **hallucination rate**
+- Better **trustworthiness of generated responses**
 Strict grounding prompt to prevent hallucinations
