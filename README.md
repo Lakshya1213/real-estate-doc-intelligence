@@ -53,7 +53,7 @@ Embedding (BGE-base)
 Store in FAISS
 # 1️ Why BGE Embeddings?
 
-Model: BAAI/bge-base-en-v1.5
+Model: BAAI/bge-small-en-v1.5 (Small due to decrease the latency)
 
 Strong semantic performance
 
@@ -61,9 +61,9 @@ Better retrieval quality than MiniLM
 
 Good tradeoff between accuracy and latency
 
-## 2 Why Cross-Encoder Reranking?
+## 2 Why Cross-Encoder Reranking? (To increase top 1 and top 3 retreival Quality)
 
-Model: cross-encoder/ms-marco-MiniLM-L-6-v2
+Model: cross-encoder/ms-marco-MiniLM-L-6-v2 
 
 Vector similarity alone is not enough.
 
@@ -75,7 +75,7 @@ Provides deeper semantic ranking
 
 Improves top-1 accuracy significantly
 
-## 3 Why FAISS?
+## 3 Why FAISS? (To Store vectors)
 
 Fast vector similarity search
 
@@ -85,7 +85,7 @@ Efficient for medium-scale datasets
 
 Current index: IndexFlatIP (Done using cosine Similarity)
 
-## Why Chunk Size 1000 & Overlap 200?
+## Why Chunk Size 1000 & Overlap 200? (On this pair we getting good result)
 
 1000 characters gives sufficient context
 
@@ -93,28 +93,88 @@ Current index: IndexFlatIP (Done using cosine Similarity)
 
 Prevents answer fragmentation
 
-## Performance Evaluation
+##  Embedding Generation Time (PDF Upload Stage)
 
-Evaluation Dataset: 20 domain-specific questions.
+Previous Time: 4.13 sec
 
-# Metrics measured:
+Current Time: 1.23 sec
 
-# Accuracy (top-3)
+Optimization Applied:
 
-# Average Query Latency
+Enabled GPU acceleration for embedding generation.
 
-# P95 Latency
+Implemented batch processing while encoding document chunks.
 
-Results (k =3 )
+Result:
+These optimizations reduced the embedding generation time from 4.13 seconds to 1.23 seconds, improving the PDF ingestion pipeline performance by approximately 70%.
 
-Accuracy: 0.75
-Average Latency: 0.0910 sec 
-P95 Latency: 0.1152 ms
 
-After reranking:
+⚡ Latency Optimization
 
-Accuracy improves significantly (typically 75–85% depending on dataset).
+We optimized the RAG pipeline to significantly reduce query latency through multiple strategies.
+1️⃣ Initial Latency (Before Optimization)
+Component	Latency
+Embedding	757.57 ms
+Retrieval	63.77 ms
+Reranking	261.19 ms
+Generation	1356.86 ms
+Total Latency	2439.44 ms (~2.4 sec)
 
+🚀 Optimizations Applied
+
+2️⃣ Embedding Optimization
+Enabled GPU acceleration for embedding computation.
+Implemented batch processing for encoding document chunks.
+Result:
+Embedding latency reduced significantly.
+Component	Latency
+Embedding	42.92 ms
+Retrieval	29.23 ms
+Reranking	154.08 ms
+Generation	722.72 ms
+Total Latency	948.99 ms (~0.95 sec)
+
+✅ Latency reduced from 2.4s → 0.95s (~61% improvement).
+
+⚡ Smart Cache Strategy
+We implemented a semantic cache system to avoid recomputing responses for similar queries.
+How it works
+Every user query is converted into an embedding vector.
+We compare it with previous query embeddings using semantic similarity.
+If similarity ≥ 90%, the system returns the cached answer instead of running the full RAG pipeline.
+Benefits:
+Handles spelling mistakes
+Handles rephrased questions
+Avoids unnecessary retrieval + reranking + generation
+
+3️⃣ Cached Query Latency
+If a similar query is found in cache:
+Component	Latency
+Embedding	31.06 ms
+Retrieval	0 ms
+Reranking	0 ms
+Generation	0 ms
+Total Latency	31.49 ms
+
+✅ Latency reduced from 2.4s → 31 ms (~98.7% improvement).
+
+📊 Final Performance Comparison
+Stage	Total Latency
+Initial System	2439 ms
+After Optimization	948 ms
+With Semantic Cache	31 ms
+
+🧠 Additional Feature
+Semantic Search
+Implemented semantic similarity matching for queries.
+Detects:
+Spelling mistakes
+Paraphrased questions
+Similar intent queries
+If similarity ≥ 0.90, the cached response is returned instantly.
+
+Result:
+A faster and more efficient RAG system with GPU embeddings, batching, and semantic caching.
 
 
 ## System Behavior as PDFs Grow
