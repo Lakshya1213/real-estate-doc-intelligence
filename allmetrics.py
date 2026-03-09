@@ -10,9 +10,7 @@ RERANK_MODEL_NAME = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 RETRIEVAL_K = 30
 
 
-# ==============================
 # LOAD MODELS
-# ==============================
 
 print("[INFO] Loading embedding model...")
 embedding_model = SentenceTransformer(EMBEDDING_MODEL_NAME, device="cuda")
@@ -21,9 +19,7 @@ print("[INFO] Loading cross-encoder reranker...")
 reranker = CrossEncoder(RERANK_MODEL_NAME, device="cuda")
 
 
-# ==============================
 # LOAD VECTOR STORE
-# ==============================
 
 vector_store = FaissVectorStore("faiss_store")
 vector_store.load()
@@ -31,9 +27,7 @@ vector_store.load()
 print("[INFO] FAISS store loaded successfully.\n")
 
 
-# ==============================
 # RETRIEVE + RERANK
-# ==============================
 
 def retrieve_and_rerank(query, top_k):
 
@@ -57,9 +51,7 @@ def retrieve_and_rerank(query, top_k):
     return results[:top_k]
 
 
-# =====================================
 # DATASET
-# =====================================
 
 evaluation_data = [
 
@@ -166,9 +158,7 @@ evaluation_data = [
 ]
 
 
-# =====================================
 # RECALL CHECK FUNCTION
-# =====================================
 
 def check_recall_semantic(expected_answer, results, k):
 
@@ -186,9 +176,7 @@ def check_recall_semantic(expected_answer, results, k):
     return 0
 
 
-# =====================================
 # MRR FUNCTION
-# =====================================
 
 def compute_mrr(expected_answer, results):
 
@@ -206,9 +194,7 @@ def compute_mrr(expected_answer, results):
     return 0
 
 
-# =====================================
 # EVALUATION FUNCTION
-# =====================================
 
 def evaluate(evaluation_data, k):
 
@@ -273,9 +259,7 @@ def evaluate(evaluation_data, k):
     print("P95 Latency:", round(p95_latency, 4), "sec")
 
 
-# =====================================
 # RUN
-# =====================================
 
 if __name__ == "__main__":
 

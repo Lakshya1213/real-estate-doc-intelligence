@@ -29,9 +29,7 @@ from src.vectorstore import FaissVectorStore
 embedding_pipeline = EmbeddingPipeline()
 vector_store = FaissVectorStore("faiss_store")
 
-# ---------------------------------------
 # MODELS
-# ---------------------------------------
 
 RERANK_MODEL_NAME = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 reranker = CrossEncoder(RERANK_MODEL_NAME)
@@ -43,17 +41,13 @@ RERANK_TOP_K = 3
 
 groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
-# ---------------------------------------
 # CACHES
-# ---------------------------------------
 
 retrieval_cache = {}
 response_cache = {}
 query_embedding_cache = {}
 
-# ---------------------------------------
 # UTILITY FUNCTIONS
-# ---------------------------------------
 
 def cosine_similarity(a, b):
     return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
@@ -83,18 +77,14 @@ def check_semantic_cache(query_emb):
     return None
 
 
-# ---------------------------------------
 # HOME ROUTE
-# ---------------------------------------
 
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
 
-# ---------------------------------------
 # FILE UPLOAD
-# ---------------------------------------
 
 @app.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
@@ -139,17 +129,13 @@ async def upload_file(file: UploadFile = File(...)):
     }
 
 
-# ---------------------------------------
 # QUERY MODEL
-# ---------------------------------------
 
 class QueryRequest(BaseModel):
     query: str
 
 
-# ---------------------------------------
 # RETRIEVE + RERANK
-# ---------------------------------------
 
 def retrieve_and_rerank(query: str, top_k: int):
 
@@ -195,9 +181,7 @@ def retrieve_and_rerank(query: str, top_k: int):
     return final_results, retrieval_time, rerank_time
 
 
-# ---------------------------------------
 # SEARCH ROUTE
-# ---------------------------------------
 
 @app.post("/search")
 async def search_documents(request: QueryRequest):
@@ -206,9 +190,7 @@ async def search_documents(request: QueryRequest):
 
     query = request.query.strip().lower()
 
-    # -------------------------
     # EMBEDDING TIMER
-    # -------------------------
 
     embed_start = time.perf_counter()
 
@@ -216,9 +198,7 @@ async def search_documents(request: QueryRequest):
 
     embed_time = (time.perf_counter() - embed_start) * 1000
 
-    # -------------------------
     # SEMANTIC CACHE CHECK
-    # -------------------------
 
     similar_query = check_semantic_cache(query_embedding)
 
@@ -238,9 +218,7 @@ async def search_documents(request: QueryRequest):
 
         return response_cache[similar_query]
 
-    # -------------------------
     # EXACT CACHE
-    # -------------------------
 
     if query in response_cache:
 
@@ -261,9 +239,7 @@ async def search_documents(request: QueryRequest):
     if not vector_store.index:
         return {"answer": "Please upload a document first."}
 
-    # -------------------------
     # RETRIEVE + RERANK
-    # -------------------------
 
     results, retrieval_time, rerank_time = retrieve_and_rerank(
         query,
@@ -273,9 +249,8 @@ async def search_documents(request: QueryRequest):
     if not results:
         return {"answer": "No relevant information found."}
 
-    # -------------------------
+   
     # BUILD CONTEXT
-    # -------------------------
 
     context = ""
 
@@ -303,9 +278,7 @@ Question:
 Answer:
 """
 
-    # -------------------------
     # GENERATION TIMER
-    # -------------------------
 
     gen_start = time.perf_counter()
 
@@ -321,9 +294,7 @@ Answer:
 
     total_time = (time.perf_counter() - total_start) * 1000
 
-    # -------------------------
     # PRINT LATENCY
-    # -------------------------
 
     print_latency(
         embed_time,
