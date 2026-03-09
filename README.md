@@ -27,30 +27,59 @@ Semantic retrieval + reranking
 
 Grounded answer generation
 
-# Architecture
+# 🏗️ Architecture
+
+## 🔎 Query Processing Pipeline
+
 User Query
-    ↓
-Vector Search (FAISS - top 15 or 20)
-    ↓
+↓
+Vector Search (FAISS – Top 15–20 Retrieval)
+↓
 Cross-Encoder Rerank
-    ↓
-Top-k Context Selection
-    ↓
-LLM (Groq Llama 3.1)
-    ↓
+↓
+Top-K Context Selection
+↓
+LLM (Groq – Llama 3.1)
+↓
 Final Answer
 
-Upload Flow:
+
+### Explanation
+
+- **User Query** – User submits a natural language question.
+- **Vector Search (FAISS)** – Retrieves the **top 15–20 relevant chunks** using semantic similarity.
+- **Cross-Encoder Rerank** – Improves ranking quality by scoring query–document pairs.
+- **Top-K Context Selection** – Selects the **most relevant chunks** for the LLM.
+- **LLM (Groq – Llama 3.1)** – Generates the grounded response using retrieved context.
+- **Final Answer** – The answer is returned to the user.
+
+---
+
+# 📄 Document Upload Pipeline
 
 Upload PDF
-    ↓
+↓
 Document Loader
-    ↓
-Chunking (1000 size, 200 overlap)
-    ↓
-Embedding (BGE-base)
-    ↓
-Store in FAISS
+↓
+Chunking (Size = 1000, Overlap = 200)
+↓
+Embedding Generation (BGE-base)
+↓
+Store in FAISS Vector Index
+
+
+### Explanation
+
+- **Upload PDF** – User uploads a document.
+- **Document Loader** – Extracts text from the PDF.
+- **Chunking** – Splits the document into smaller chunks for better retrieval.
+  - Chunk Size: **1000**
+  - Overlap: **200**
+- **Embedding Generation** – Each chunk is converted into a vector using **BGE-base embeddings**.
+- **FAISS Storage** – Embeddings are stored in the **FAISS vector database** for fast similarity search.
+  
+
+
 # 1️ Why BGE Embeddings?
 
 Model: BAAI/bge-small-en-v1.5 (Small due to decrease the latency)
