@@ -1,21 +1,27 @@
 import time
-from sentence_transformers import SentenceTransformer, CrossEncoder
+import numpy as np
+from sentence_transformers import SentenceTransformer, CrossEncoder, util
 from src.vectorstore import FaissVectorStore
 
 
-EMBEDDING_MODEL_NAME = "BAAI/bge-base-en-v1.5"
-RERANK_MODEL_NAME = "cross-encoder/ms-marco-MiniLM-L-6-v2" ## This Model is used for arrangeing the in best order
+EMBEDDING_MODEL_NAME = "BAAI/bge-small-en-v1.5"
+RERANK_MODEL_NAME = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 
-RETRIEVAL_K = 6  # retrieve top 20 before rerank
+RETRIEVAL_K = 30
+SIMILARITY_THRESHOLD = 0.60
+
 
 # LOAD MODELS
+
 print("[INFO] Loading embedding model...")
 embedding_model = SentenceTransformer(EMBEDDING_MODEL_NAME, device="cuda")
 
 print("[INFO] Loading cross-encoder reranker...")
 reranker = CrossEncoder(RERANK_MODEL_NAME, device="cuda")
 
+
 # LOAD VECTOR STORE
+
 vector_store = FaissVectorStore("faiss_store")
 vector_store.load()
 
@@ -32,107 +38,150 @@ def retrieve_and_rerank(query, top_k):
         return []
 
     pairs = [[query, doc["text"]] for doc in results]
+
     rerank_scores = reranker.predict(pairs)
 
     for doc, score in zip(results, rerank_scores):
         doc["rerank_score"] = float(score)
 
-    results = sorted(
-        results,
-        key=lambda x: x["rerank_score"],
-        reverse=True
-    )
+    results = sorted(results, key=lambda x: x["rerank_score"], reverse=True)
 
     return results[:top_k]
 
 
-# 20 QUESTION DATASET
+# DATASET
+
 evaluation_data = [
-    {"query": "What percentage of India's workforce is engaged in agriculture?", "expected_page": 226},
-    {"query": "What is the average annual growth rate of agriculture in the last five years?", "expected_page": 228},
-    {"query": "What was the decadal growth rate from FY16-FY25?", "expected_page": 228},
-    {"query": "What was the total foodgrain production in AY 2024-25?", "expected_page": 228},
-    {"query": "What was horticulture production in 2024-25?", "expected_page": 229},
-    {"query": "What share of GVA does horticulture contribute?", "expected_page": 229},
-    {"query": "What is the MSP formula introduced in 2018-19?", "expected_page": 247},
-    {"query": "How many crops are covered under MSP?", "expected_page": 247},
-    {"query": "How many farmers were insured under PMFBY in 2024-25?", "expected_page": 250},
-    {"query": "How many hectares were covered under PMFBY in 2024-25?", "expected_page": 250},
-    {"query": "How much has PMFBY disbursed since inception?", "expected_page": 250},
-    {"query": "How much did oilseed production increase between 2014-15 and 2024-25?", "expected_page": 234},
-    {"query": "What was domestic edible oil availability in 2023-24?", "expected_page": 234},
-    {"query": "How much did edible oil import share decline?", "expected_page": 234},
-    {"query": "How many Custom Hiring Centres were established?", "expected_page": 243},
-    {"query": "How many PACS are being computerised?", "expected_page": 250},
-    {"query": "How many FMD vaccinations were administered since 2020?", "expected_page": 243},
-    {"query": "How much foreign exchange was saved by ethanol blending?", "expected_page": 234},
-    {"query": "How much did livestock GVA increase between FY15 and FY24?", "expected_page": 228},
-    {"query": "What was agriculture growth in Q2 FY 2025-26?", "expected_page": 228},
+
+    {"query": "Why is agriculture important for India's economy?", "expected_answer": "food security"},
+    {"query": "Which sectors are increasingly contributing to rural income?", "expected_answer": "livestock"},
+    {"query": "What is the role of horticulture in agriculture?", "expected_answer": "high value crops"},
+    {"query": "Why is crop diversification important?", "expected_answer": "reduce risk"},
+    {"query": "What is the purpose of e-NAM?", "expected_answer": "digital agricultural market"},
+    {"query": "What is the objective of the Digital Agriculture Mission?", "expected_answer": "data driven decision"},
+    {"query": "How do Farmer Producer Organisations help farmers?", "expected_answer": "collective bargaining"},
+    {"query": "Why are quality seeds important?", "expected_answer": "increase productivity"},
+    {"query": "Why is irrigation important in agriculture?", "expected_answer": "water availability"},
+    {"query": "What environmental factor is affecting agriculture?", "expected_answer": "climate change"},
+    {"query": "Why is agricultural productivity important?", "expected_answer": "limited land"},
+    {"query": "What does MSP aim to provide to farmers?", "expected_answer": "price support"},
+    {"query": "What role do cooperatives play in agriculture?", "expected_answer": "market access"},
+    {"query": "Why is mechanisation important in farming?", "expected_answer": "efficiency"},
+    {"query": "Why is investment in agricultural research important?", "expected_answer": "improved crop varieties"},
+    {"query": "What challenge does fragmented landholding create?", "expected_answer": "low productivity"},
+    {"query": "What is a major water-related challenge in agriculture?", "expected_answer": "water scarcity"},
+    {"query": "What role does technology play in agriculture?", "expected_answer": "precision farming"},
+    {"query": "Why are agricultural markets important for farmers?", "expected_answer": "better prices"},
+    {"query": "What is the long-term goal of agricultural reforms?", "expected_answer": "increase farmer income"},
 ]
 
 
-import time
-import numpy as np
+# =====================================
+# SEMANTIC SIMILARITY CHECK
+# =====================================
+
+def semantic_match(expected_answer, results):
+
+    answer_embedding = embedding_model.encode(
+        expected_answer,
+        convert_to_tensor=True
+    )
+
+    max_score = 0
+
+    for doc in results:
+
+        chunk_embedding = embedding_model.encode(
+            doc["text"],
+            convert_to_tensor=True
+        )
+
+        score = util.cos_sim(answer_embedding, chunk_embedding).item()
+
+        max_score = max(max_score, score)
+
+    return max_score >= SIMILARITY_THRESHOLD, max_score
+
+
+# =====================================
+# EVALUATION FUNCTION
+# =====================================
 
 def evaluate(evaluation_data, top_k):
 
     correct = 0
     total = len(evaluation_data)
+
     query_times = []
 
     for item in evaluation_data:
-        query = item["query"]
-        expected_page = item["expected_page"]
 
-        print(f"\nQuery: {query}")
+        query = item["query"]
+        expected_answer = item["expected_answer"]
+
+        print("\n" + "="*70)
+        print(f"Query: {query}")
 
         start = time.perf_counter()
+
         results = retrieve_and_rerank(query, top_k)
+
         end = time.perf_counter()
 
         latency = end - start
         query_times.append(latency)
 
-        found = False
-        retrieved_pages = []
+        found, score = semantic_match(expected_answer, results)
 
-        for doc in results:
-            internal_page = doc["page"]
-            printed_page = internal_page
-            retrieved_pages.append(printed_page)
+        print(f"Expected Answer: {expected_answer}")
 
-            if printed_page == expected_page:
-                found = True
-                break
+        # ==============================
+        # PRINT RETRIEVED RESULTS
+        # ==============================
 
-        print(f"Expected page: {expected_page}")
-        print(f"Retrieved pages: {retrieved_pages}")
-        print(f"Query latency: {latency:.4f} sec")
+        print("\nTop Retrieved Chunks:")
+
+        if results:
+            for i, doc in enumerate(results):
+
+                print(f"\nRank {i+1}")
+                print(f"Rerank Score: {doc['rerank_score']:.3f}")
+
+                text_preview = doc["text"][:300]
+                print(f"Text: {text_preview}...")
+
+        else:
+            print("No results retrieved.")
+
+        print(f"\nSemantic Similarity Score: {score:.3f}")
+        print(f"Match: {found}")
+        print(f"Query Latency: {latency:.4f} sec")
 
         if found:
             correct += 1
 
     accuracy = correct / total if total > 0 else 0
 
-    # Performance metrics
     avg_latency = np.mean(query_times)
     p95_latency = np.percentile(query_times, 95)
 
-    print(f"\n===== Evaluation for k = {top_k} =====")
+    print("\n" + "="*70)
+    print(f"Evaluation Results for k = {top_k}")
+    print("="*70)
+
     print(f"Accuracy: {accuracy:.2f}")
     print(f"Average Query Latency: {avg_latency:.4f} sec")
     print(f"P95 Latency: {p95_latency:.4f} sec")
-    print("=====================================\n")
+
+    print("="*70)
 
 
 # =====================================
-# RUN BOTH k=1 and k=3
+# RUN EVALUATION
 # =====================================
+
 if __name__ == "__main__":
-    # print("Running evaluation for k = 1")
-    # # evaluate([evaluation_data[0]], 1)
-
-    # evaluate(evaluation_data, 1)
 
     print("Running evaluation for k = 3")
-    evaluate(evaluation_data, 3)
+
+    evaluate(evaluation_data, 1)

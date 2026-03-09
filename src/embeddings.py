@@ -10,8 +10,8 @@ class EmbeddingPipeline:
     def __init__(
         self,
         model_name: str = "BAAI/bge-small-en-v1.5",
-        chunk_size: int = 800,
-        chunk_overlap: int = 200,
+        chunk_size: int = 1000,
+        chunk_overlap: int = 400,
         use_gpu: bool = True
     ):
         self.chunk_size = chunk_size
