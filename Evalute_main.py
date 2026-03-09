@@ -6,7 +6,7 @@ from src.vectorstore import FaissVectorStore
 EMBEDDING_MODEL_NAME = "BAAI/bge-base-en-v1.5"
 RERANK_MODEL_NAME = "cross-encoder/ms-marco-MiniLM-L-6-v2" ## This Model is used for arrangeing the in best order
 
-RETRIEVAL_K = 20  # retrieve top 20 before rerank
+RETRIEVAL_K = 6  # retrieve top 20 before rerank
 
 # LOAD MODELS
 print("[INFO] Loading embedding model...")
